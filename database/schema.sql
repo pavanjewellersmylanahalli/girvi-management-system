@@ -4,9 +4,6 @@
 -- Enable UUID extension
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 
--- Enable Row Level Security
-ALTER DATABASE postgres SET "app.jwt_secret" TO 'your-jwt-secret-here';
-
 -- =====================================================
 -- SHOPS TABLE - Main tenant/shop registration
 -- =====================================================
@@ -80,24 +77,50 @@ CREATE INDEX idx_audit_created_at ON audit_logs(created_at);
 -- Enable RLS on shops table
 ALTER TABLE shops ENABLE ROW LEVEL SECURITY;
 
--- Policy: Users can only read their own shop data
-CREATE POLICY shop_isolation_policy ON shops
+-- Policy: Service role can do everything (for backend API)
+CREATE POLICY shops_service_role_policy ON shops
     FOR ALL
-    USING (shop_id = current_setting('app.current_shop_id', TRUE)::UUID);
+    TO service_role
+    USING (true)
+    WITH CHECK (true);
+
+-- Policy: Authenticated users can read their own shop
+CREATE POLICY shops_select_own ON shops
+    FOR SELECT
+    TO authenticated
+    USING (shop_id = (current_setting('request.jwt.claims', true)::json->>'shop_id')::uuid);
 
 -- Enable RLS on shop_sessions
 ALTER TABLE shop_sessions ENABLE ROW LEVEL SECURITY;
 
-CREATE POLICY session_isolation_policy ON shop_sessions
+-- Policy: Service role can manage all sessions
+CREATE POLICY sessions_service_role_policy ON shop_sessions
     FOR ALL
-    USING (shop_id = current_setting('app.current_shop_id', TRUE)::UUID);
+    TO service_role
+    USING (true)
+    WITH CHECK (true);
+
+-- Policy: Authenticated users can read their own sessions
+CREATE POLICY sessions_select_own ON shop_sessions
+    FOR SELECT
+    TO authenticated
+    USING (shop_id = (current_setting('request.jwt.claims', true)::json->>'shop_id')::uuid);
 
 -- Enable RLS on audit_logs
 ALTER TABLE audit_logs ENABLE ROW LEVEL SECURITY;
 
-CREATE POLICY audit_isolation_policy ON audit_logs
+-- Policy: Service role can manage all logs
+CREATE POLICY audit_service_role_policy ON audit_logs
     FOR ALL
-    USING (shop_id = current_setting('app.current_shop_id', TRUE)::UUID);
+    TO service_role
+    USING (true)
+    WITH CHECK (true);
+
+-- Policy: Authenticated users can read their own audit logs
+CREATE POLICY audit_select_own ON audit_logs
+    FOR SELECT
+    TO authenticated
+    USING (shop_id = (current_setting('request.jwt.claims', true)::json->>'shop_id')::uuid);
 
 -- =====================================================
 -- FUNCTIONS
